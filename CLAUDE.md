@@ -4,12 +4,41 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project overview
 
-Calendar booking system (Hexlet "AI for Developers" course project). The repo contains two artifacts:
+Calendar booking system (Hexlet "AI for Developers" course project). The repo contains three artifacts:
 
 - **`main.tsp`** — TypeSpec API specification (source of truth for the API contract)
 - **`frontend/`** — React SPA that consumes the API
+- **`backend/`** — Rails 8.1 API-only app (the actual backend implementation)
 
-There is no backend implementation in this repo; the frontend talks to an external API whose base URL is configured via `VITE_API_URL`.
+`docker-compose.yml` wires them together: frontend on port 3000, backend on port 3001.
+
+## Backend commands
+
+All commands run from the `backend/` directory. Ruby 3.4.2 (`.ruby-version` / rbenv or asdf).
+
+```bash
+bin/setup          # install gems, prepare DB, start server
+bin/rails server   # start dev server (port 3000 by default)
+bin/rails db:prepare   # create + migrate DB
+bin/rails db:reset     # drop, recreate, and seed
+bin/ci             # full CI: setup, rubocop, bundler-audit, brakeman
+bin/rubocop        # Ruby style checks
+bin/brakeman       # static security analysis
+```
+
+There are no automated tests — CI only covers style and security static analysis.
+
+## Backend architecture
+
+Rails 8.1 API-only, SQLite (via solid_cache + solid_queue for background jobs). CORS is enabled via `rack-cors`.
+
+**Models:** `EventType` and `Booking` (string PKs — UUIDs generated in `before_create`). The `Booking.overlapping` scope enforces the no-overlap invariant across all event types.
+
+**Slot generation:** `SlotGeneratorService` (`app/services/`) computes available slots over a 14-day window. It loads all existing bookings for the window once, then filters candidates using an in-memory overlap check. `granularity` controls the grid step (≥ 5 min, default 30).
+
+**Error responses** use a consistent `{ code, message }` JSON shape. `ApplicationController` rescues `RecordNotFound` → 404 and `RecordNotUnique` → 409.
+
+**Serialization** is done inline in `ApplicationController` private helpers (`serialize_event_type`, `serialize_booking`) — no dedicated serializer layer.
 
 ## Frontend commands
 
@@ -22,13 +51,11 @@ npm run lint     # ESLint
 npm run preview  # Preview the production build locally
 ```
 
-Run the production build in Docker (served by nginx on port 3000):
+Run the full stack in Docker (frontend on 3000, backend on 3001):
 
 ```bash
 docker compose up --build
 ```
-
-There are no tests in this project.
 
 ## Frontend architecture
 
@@ -67,8 +94,8 @@ Layer breakdown:
 - `granularity` query param (≥ 5, default 30) controls slot grid size in minutes.
 - All datetimes are RFC 3339 UTC strings (`Timestamp` scalar). Slug IDs are lowercase URL-safe strings.
 
-When changing the API contract, update `main.tsp` first, then keep `src/types/api.ts` in sync.
+When changing the API contract, update `main.tsp` first, then keep `src/types/api.ts` and the Rails controllers in sync.
 
 ## Environment
 
-Copy `frontend/.env.example` to `frontend/.env` and set `VITE_API_URL` to the backend origin before running the dev server.
+Copy `frontend/.env.example` to `frontend/.env` and set `VITE_API_URL` to the backend origin before running the dev server. When running via `docker compose`, `VITE_API_URL` is baked into the build as `http://localhost:3001`.
