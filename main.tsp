@@ -58,21 +58,8 @@ model EventType {
   durationMinutes: int32;
 }
 
-@doc("Public-facing event type shown to guests; id is included so guests can look up available slots")
-model PublicEventType {
-  @doc("URL-safe unique slug identifier, used to request available time slots")
-  id: Slug;
-
-  @doc("Human-readable display name")
-  name: string;
-
-  @doc("Full description of what this event type involves")
-  description: string;
-
-  @doc("Duration of the event in minutes")
-  @minValue(1)
-  durationMinutes: int32;
-}
+@doc("Public-facing event type shown to guests")
+alias PublicEventType = EventType;
 
 @doc("Request body for creating a new event type")
 model CreateEventTypeRequest {
@@ -152,7 +139,7 @@ namespace CalendarBooking.Admin {
   interface EventTypes {
     @doc("Create a new event type")
     @post
-    create(@body body: CreateEventTypeRequest): EventType | ApiError;
+    create(@body body: CreateEventTypeRequest): CreatedResponse & EventType | ApiError;
 
     @doc("List all event types with full details")
     @get
@@ -211,6 +198,6 @@ namespace CalendarBooking.GuestBookings {
   interface Bookings {
     @doc("Create a new booking. The chosen startTime must be an available slot from the 14-day window. No two bookings may overlap in time, even for different event types.")
     @post
-    create(@body body: CreateBookingRequest): Booking | ApiError;
+    create(@body body: CreateBookingRequest): CreatedResponse & Booking | ApiError;
   }
 }
