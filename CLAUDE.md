@@ -28,9 +28,11 @@ Run the production build in Docker (served by nginx on port 3000):
 docker compose up --build
 ```
 
+There are no tests in this project.
+
 ## Frontend architecture
 
-Node.js 22 (`.tool-versions` / asdf). Stack: React 19, TypeScript, Vite, Mantine v9, TanStack Query v5, React Router v7.
+Node.js 22 (`.tool-versions` / asdf). Stack: React 19, TypeScript, Vite, Mantine v9, TanStack Query v5, React Router v7, `dayjs` (date formatting).
 
 Two user roles drive the route/component split:
 
@@ -49,7 +51,11 @@ Layer breakdown:
 | Pages | `src/pages/{admin,guest}/` | Page-level components wired to hooks |
 | Layouts | `src/layouts/` | `AdminLayout`, `GuestLayout` (nav + Mantine providers) |
 
-API errors are thrown as `ApiError` objects (`{ code, message }`); use `isApiError()` from `src/types/api.ts` to narrow the type in catch blocks.
+**Query vs mutation hooks:** read hooks (`useEventTypes`, `useSlots`, `useAdminBookings`, `useAdminEventTypes`) wrap `useQuery`; write hooks (`useCreateBooking`, `useCreateEventType`) wrap `useMutation` — callers call `.mutate()` / `.mutateAsync()` on the returned object. The shared `queryClient` (`src/lib/queryClient.ts`) has `staleTime: 30_000` and `retry: 1` as defaults.
+
+**Booking flow (`BookingPage`)** is two-step: first the guest picks a `TimeSlot` from `SlotGrid`; state lifts to `selectedSlot` in the page, which then swaps `SlotGrid` out for `BookingForm`. On success the page navigates to `/book/:eventTypeId/success`.
+
+**Error handling:** `apiFetch` throws the raw JSON body as `ApiError` on non-2xx responses. TanStack Query surfaces this on `query.error` / `mutation.error`. Use `isApiError()` from `src/types/api.ts` to narrow the type in catch blocks.
 
 ## TypeSpec spec
 
