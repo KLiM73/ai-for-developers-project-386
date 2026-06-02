@@ -17,13 +17,13 @@ Calendar booking system (Hexlet "AI for Developers" course project). The repo co
 All commands run from the `backend/` directory. Ruby 3.4.2 (`.ruby-version` / rbenv or asdf).
 
 ```bash
-bin/setup          # install gems, prepare DB, start server
-bin/rails server   # start dev server (port 3000 by default)
-bin/rails db:prepare   # create + migrate DB
-bin/rails db:reset     # drop, recreate, and seed
-bin/ci             # full CI: setup, rubocop, bundler-audit, brakeman
-bin/rubocop        # Ruby style checks
-bin/brakeman       # static security analysis
+bin/setup               # install gems, prepare DB, start server
+bin/rails server -p 3001  # start dev server on port 3001 (matches frontend VITE_API_URL default)
+bin/rails db:prepare    # create + migrate DB
+bin/rails db:reset      # drop, recreate, and seed
+bin/ci                  # full CI: setup, rubocop, bundler-audit, brakeman
+bin/rubocop             # Ruby style checks
+bin/brakeman            # static security analysis
 ```
 
 There are no automated tests — CI only covers style and security static analysis.
@@ -32,9 +32,11 @@ There are no automated tests — CI only covers style and security static analys
 
 Rails 8.1 API-only, SQLite (via solid_cache + solid_queue for background jobs). CORS is enabled via `rack-cors`.
 
-**Models:** `EventType` and `Booking` (string PKs — UUIDs generated in `before_create`). The `Booking.overlapping` scope enforces the no-overlap invariant across all event types.
+**Models:** `EventType` (string PK = user-provided slug, validated with `SLUG_PATTERN`) and `Booking` (string PK = UUID auto-generated in `before_create`). `Booking` denormalizes `event_type_name` at creation time so it survives event type renames/deletes. The `Booking.overlapping` scope enforces the no-overlap invariant globally across all event types.
 
 **Slot generation:** `SlotGeneratorService` (`app/services/`) computes available slots over a 14-day window. It loads all existing bookings for the window once, then filters candidates using an in-memory overlap check. `granularity` controls the grid step (≥ 5 min, default 30).
+
+**Admin bookings** (`GET /admin/bookings`) accepts an optional `from` query param (RFC 3339); defaults to `Time.now.utc` when omitted or unparseable.
 
 **Error responses** use a consistent `{ code, message }` JSON shape. `ApplicationController` rescues `RecordNotFound` → 404 and `RecordNotUnique` → 409.
 
@@ -95,6 +97,22 @@ Layer breakdown:
 - All datetimes are RFC 3339 UTC strings (`Timestamp` scalar). Slug IDs are lowercase URL-safe strings.
 
 When changing the API contract, update `main.tsp` first, then keep `src/types/api.ts` and the Rails controllers in sync.
+
+## E2E tests
+
+Playwright tests live in `e2e/`. They spin up both servers automatically (Rails on 3001 in test env, Vite on 3000) and reset the database via `db:seed:replant` between test suites.
+
+All commands run from the `e2e/` directory. Install deps first: `npm install`.
+
+```bash
+npm test            # run all tests headlessly
+npm run test:ui     # Playwright UI mode (interactive)
+npm run test:debug  # debug mode with Playwright inspector
+```
+
+The test database (`backend/storage/test.sqlite3`) is seeded with three event types (`intro-call-15min`, `one-on-one-30min`, `deep-dive-60min`) and two bookings. `global-setup.ts` recreates it from scratch before the suite; `resetDb()` calls `db:seed:replant` inside test files to reset between describe blocks without dropping the file (which would break the running Rails connection).
+
+Tests use a Page Object pattern — page objects live in `e2e/pages/` and wrap Playwright locators for each page.
 
 ## Environment
 
