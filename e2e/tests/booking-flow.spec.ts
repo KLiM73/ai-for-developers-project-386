@@ -12,7 +12,7 @@ test.describe('BookingPage', () => {
     test('shows event name and duration badge', async ({ page }) => {
       const p = new BookingPage(page);
       await p.goto('one-on-one-30min');
-      await expect(page.getByText('One-on-One')).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'One-on-One' })).toBeVisible();
       await expect(page.getByText('30 min')).toBeVisible();
     });
 
